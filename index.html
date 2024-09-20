@@ -141,28 +141,45 @@
         playerParticipation[player] = 0;
       });
 
+      // Shuffle the initial pool of players to introduce randomness
+      let shuffledPlayers = shuffle([...players]);
+
       // Loop until we generate the required number of rounds
       while (rounds.length < roundCount) {
-        let remainingPlayers = [...players];
+        let availablePlayers = [...shuffledPlayers];
 
-        // Sort players by the number of rounds they have played (ascending)
-        remainingPlayers.sort((a, b) => playerParticipation[a] - playerParticipation[b]);
+        // Get the minimum participation count
+        const minParticipation = Math.min(...availablePlayers.map(player => playerParticipation[player]));
 
-        // Add players to a round, prioritizing those with fewer rounds
-        while (remainingPlayers.length >= 4 && rounds.length < roundCount) {
-          let round = remainingPlayers.splice(0, 4);
-          rounds.push(round);
+        // Filter players who have the minimum participation count
+        let lowParticipationPlayers = availablePlayers.filter(player => playerParticipation[player] === minParticipation);
 
-          // Update the participation count for each player in the round
-          round.forEach(player => {
-            playerParticipation[player]++;
-          });
+        // Shuffle the group of players with the minimum participation count
+        shuffle(lowParticipationPlayers);
+
+        // Fill the round with the shuffled low-participation players
+        let round = [];
+
+        while (round.length < 4 && lowParticipationPlayers.length > 0) {
+          round.push(lowParticipationPlayers.pop());
         }
 
-        // If fewer than 4 players remain, refresh the pool and continue
-        if (remainingPlayers.length < 4 && rounds.length < roundCount) {
-          remainingPlayers = [...players];
+        // If the round is not yet filled, fill the remaining spots from the general pool
+        if (round.length < 4) {
+          availablePlayers = availablePlayers.filter(player => !round.includes(player));
+          shuffle(availablePlayers);
+          while (round.length < 4 && availablePlayers.length > 0) {
+            round.push(availablePlayers.pop());
+          }
         }
+
+        // Add the round to the rounds array
+        rounds.push(round);
+
+        // Update participation counts for the players in this round
+        round.forEach(player => {
+          playerParticipation[player]++;
+        });
       }
 
       displayRounds();
