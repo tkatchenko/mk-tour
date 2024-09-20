@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mario Kart Tournament</title>
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid black;
+      padding: 8px;
+      text-align: center;
+    }
+    #graph {
+      margin-top: 20px;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .tabs button {
+      padding: 10px;
+      margin-right: 5px;
+      cursor: pointer;
+    }
+    .player-remove {
+      margin-left: 10px;
+      color: red;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mario Kart Tournament</h1>
+  
+  <!-- Tab Navigation -->
+  <div class="tabs">
+    <button onclick="openTab('players')">Add Players/Generate Rounds</button>
+    <button onclick="openTab('rounds')">Rounds</button>
+    <button onclick="openTab('leaderboard')">Leaderboard and Graph</button>
+  </div>
+
+  <!-- Add Players / Generate Rounds Tab -->
+  <div id="players" class="tab-content active">
+    <h2>Add Players</h2>
+    <input type="text" id="playerName" placeholder="Player Name">
+    <button onclick="addPlayer()">Add Player</button>
+    
+    <h2>Players:</h2>
+    <ul id="playerList"></ul>
+
+    <h2>Number of Rounds</h2>
+    <input type="number" id="roundCount" min="1" placeholder="Enter number of rounds">
+
+    <button onclick="generateRounds()">Generate Rounds</button>
+  </div>
+
+  <!-- Rounds Tab -->
+  <div id="rounds" class="tab-content">
+    <h2>Rounds:</h2>
+    <div id="roundsList"></div>
+  </div>
+
+  <!-- Leaderboard and Graph Tab -->
+  <div id="leaderboard" class="tab-content">
+    <h2>Leaderboard</h2>
+    <div id="leaderboardTable"></div>
+
+    <h2>Points Graph</h2>
+    <canvas id="graph" width="400" height="200"></canvas>
+  </div>
+
+  <script>
+    let players = [];
+    let rounds = [];
+    let points = {};
+
+    function openTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    function addPlayer() {
+      const name = document.getElementById('playerName').value.trim();
+      if (name && !players.includes(name)) {
+        players.push(name);
+        points[name] = 0;
+        updatePlayerList();
+        sessionStorage.setItem('players', JSON.stringify(players));
+      }
+      document.getElementById('playerName').value = '';
+    }
+
+    function removePlayer(playerName) {
+      players = players.filter(player => player !== playerName);
+      delete points[playerName];
+      updatePlayerList();
+      sessionStorage.setItem('players', JSON.stringify(players));
+    }
+
+    function updatePlayerList() {
+      let playerListHTML = '';
+      players.forEach(player => {
+        playerListHTML += `<li>${player} <span class="player-remove" onclick="removePlayer('${player}')">Remove</span></li>`;
+      });
+      document.getElementById('playerList').innerHTML = playerListHTML;
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function generateRounds() {
+      const roundCount = parseInt(document.getElementById('roundCount').value);
+      if (!roundCount || roundCount < 1) {
+        alert('Please enter a valid number of rounds.');
+        return;
+      }
+
+      if (players.length < 4) {
+        alert('You need at least 4 players to generate rounds.');
+        return;
+      }
+
+      rounds = [];
+
+      // Initialize the participation count for each player
+      let playerParticipation = {};
+      players.forEach(player => {
+        playerParticipation[player] = 0;
+      });
+
+      // Loop until we generate the required number of rounds
+      while (rounds.length < roundCount) {
+        let remainingPlayers = [...players];
+
+        // Sort players by the number of rounds they have played (ascending)
+        remainingPlayers.sort((a, b) => playerParticipation[a] - playerParticipation[b]);
+
+        // Add players to a round, prioritizing those with fewer rounds
+        while (remainingPlayers.length >= 4 && rounds.length < roundCount) {
+          let round = remainingPlayers.splice(0, 4);
+          rounds.push(round);
+
+          // Update the participation count for each player in the round
+          round.forEach(player => {
+            playerParticipation[player]++;
+          });
+        }
+
+        // If fewer than 4 players remain, refresh the pool and continue
+        if (remainingPlayers.length < 4 && rounds.length < roundCount) {
+          remainingPlayers = [...players];
+        }
+      }
+
+      displayRounds();
+      sessionStorage.setItem('rounds', JSON.stringify(rounds));
+    }
+
+    function displayRounds() {
+      let roundsHTML = '<table><tr><th>Round #</th><th>Player 1</th><th>Player 1 Position</th><th>Player 2</th><th>Player 2 Position</th><th>Player 3</th><th>Player 3 Position</th><th>Player 4</th><th>Player 4 Position</th></tr>';
+      rounds.forEach((round, index) => {
+        roundsHTML += `<tr><td>${index + 1}</td>`;
+        round.forEach(player => {
+          roundsHTML += `<td>${player}</td><td>
+            <label>
+              <input type="radio" name="position-${index}-${player}" value="1" onchange="assignPoints(${index}, '${player}', this.value)"> 1st
+            </label>
+            <label>
+              <input type="radio" name="position-${index}-${player}" value="2" onchange="assignPoints(${index}, '${player}', this.value)"> 2nd
+            </label>
+            <label>
+              <input type="radio" name="position-${index}-${player}" value="3" onchange="assignPoints(${index}, '${player}', this.value)"> 3rd
+            </label>
+            <label>
+              <input type="radio" name="position-${index}-${player}" value="4" onchange="assignPoints(${index}, '${player}', this.value)"> 4th
+            </label>
+          </td>`;
+        });
+        roundsHTML += '</tr>';
+      });
+      roundsHTML += '</table>';
+      document.getElementById('roundsList').innerHTML = roundsHTML;
+    }
+
+    function assignPoints(roundIndex, playerName, position) {
+      if (playerName === 'null' || playerName === 'Bye') return; // Ignore "Bye" players
+      const pointMap = { "1": 3, "2": 2, "3": 1, "4": 0 };
+      const pointsToAdd = pointMap[position];
+      points[playerName] += pointsToAdd;
+      sessionStorage.setItem('points', JSON.stringify(points));
+      updateLeaderboard();
+      drawGraph();
+    }
+
+    function updateLeaderboard() {
+      let leaderboardHTML = '<table><tr><th>Player</th><th>Points</th></tr>';
+      for (let player in points) {
+        leaderboardHTML += `<tr><td>${player}</td><td>${points[player]}</td></tr>`;
+      }
+      leaderboardHTML += '</table>';
+      document.getElementById('leaderboardTable').innerHTML = leaderboardHTML;
+    }
+
+    function drawGraph() {
+      const canvas = document.getElementById('graph');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear previous drawings
+
+      const players = Object.keys(points);
+      const values = Object.values(points);
+      const barWidth = canvas.width / players.length;
+
+      values.forEach((value, index) => {
+        const barHeight = (value / Math.max(...values)) * canvas.height;
+
+        // Draw bar
+        ctx.fillStyle = 'white';
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+        ctx.fillRect(index * barWidth, canvas.height - barHeight, barWidth - 10, barHeight);
+        ctx.strokeRect(index * barWidth, canvas.height - barHeight, barWidth - 10, barHeight);
+
+        // Draw player names
+        ctx.fillStyle = 'black';
+        ctx.fillText(players[index], index * barWidth + 10, canvas.height - 10);
+      });
+    }
+
+    window.onload = function() {
+      if (sessionStorage.getItem('players')) {
+        players = JSON.parse(sessionStorage.getItem('players'));
+        players.forEach(player => {
+          points[player] = 0;
+        });
+        updatePlayerList();
+      }
+      if (sessionStorage.getItem('rounds')) {
+        rounds = JSON.parse(sessionStorage.getItem('rounds'));
+        displayRounds();
+      }
+      if (sessionStorage.getItem('points')) {
+        points = JSON.parse(sessionStorage.getItem('points'));
+        updateLeaderboard();
+        drawGraph();
+      }
+    }
+  </script>
+</body>
+</html>
